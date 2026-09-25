@@ -162,41 +162,48 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _onMapClick(Point<double> point, LatLng coordinates) async {
-    final controller = _controller;
-    if (controller == null) return;
-    final anchor = Offset(point.x, point.y);
+    debugPrint('[tap] click at $point');
+    try {
+      final controller = _controller;
+      if (controller == null) return;
+      final anchor = Offset(point.x, point.y);
 
-    final vehicleFeatures = await controller.queryRenderedFeatures(point, [_vehiclesLayerId], null);
-    if (vehicleFeatures.isNotEmpty) {
-      final properties = (vehicleFeatures.first as Map)['properties'] as Map;
-      setState(() {
-        _popupAnchor = anchor;
-        _popupContent = VehicleContent(
-          mode: properties['mode'] as String,
-          line: properties['line'] as String?,
-          onClose: _closePopup,
-        );
-      });
-      return;
+      final vehicleFeatures = await controller.queryRenderedFeatures(point, [_vehiclesLayerId], null);
+      debugPrint('[tap] ${vehicleFeatures.length} vehicle feature(s)');
+      if (vehicleFeatures.isNotEmpty) {
+        final properties = (vehicleFeatures.first as Map)['properties'] as Map;
+        setState(() {
+          _popupAnchor = anchor;
+          _popupContent = VehicleContent(
+            mode: properties['mode'] as String,
+            line: properties['line'] as String?,
+            onClose: _closePopup,
+          );
+        });
+        return;
+      }
+
+      final stopFeatures = await controller.queryRenderedFeatures(point, [_stopsLayerId], null);
+      debugPrint('[tap] ${stopFeatures.length} stop feature(s)');
+      if (stopFeatures.isNotEmpty) {
+        final properties = (stopFeatures.first as Map)['properties'] as Map;
+        final gtfsId = properties['gtfsId'] as String;
+        setState(() {
+          _popupAnchor = anchor;
+          _popupContent = StopContent(
+            name: properties['name'] as String,
+            code: properties['code'] as String?,
+            departures: fetchStopDepartures(gtfsId),
+            onClose: _closePopup,
+          );
+        });
+        return;
+      }
+
+      _closePopup();
+    } catch (e, st) {
+      debugPrint('[tap] error: $e\n$st');
     }
-
-    final stopFeatures = await controller.queryRenderedFeatures(point, [_stopsLayerId], null);
-    if (stopFeatures.isNotEmpty) {
-      final properties = (stopFeatures.first as Map)['properties'] as Map;
-      final gtfsId = properties['gtfsId'] as String;
-      setState(() {
-        _popupAnchor = anchor;
-        _popupContent = StopContent(
-          name: properties['name'] as String,
-          code: properties['code'] as String?,
-          departures: fetchStopDepartures(gtfsId),
-          onClose: _closePopup,
-        );
-      });
-      return;
-    }
-
-    _closePopup();
   }
 
   void _closePopup() {
