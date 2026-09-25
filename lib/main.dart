@@ -166,7 +166,13 @@ class _MapScreenState extends State<MapScreen> {
     try {
       final controller = _controller;
       if (controller == null) return;
-      final anchor = Offset(point.x, point.y);
+      // onMapClick hands back the point in physical pixels; Positioned/Offset
+      // work in logical pixels, so this needs dividing by the device's pixel
+      // ratio or the popup ends up placed well off whatever was actually
+      // tapped (off-screen entirely on a high-density display).
+      final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+      final anchor = Offset(point.x / devicePixelRatio, point.y / devicePixelRatio);
+      debugPrint('[tap] anchor at $anchor (ratio $devicePixelRatio)');
 
       final vehicleFeatures = await controller.queryRenderedFeatures(point, [_vehiclesLayerId], null);
       debugPrint('[tap] ${vehicleFeatures.length} vehicle feature(s)');
