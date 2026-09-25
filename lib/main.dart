@@ -7,6 +7,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'anchored_popup.dart';
 import 'digitransit.dart';
 import 'hfp.dart';
+import 'stop_icons.dart';
 import 'vehicle_modes.dart';
 import 'vehicle_stop_content.dart';
 
@@ -85,18 +86,18 @@ class _MapScreenState extends State<MapScreen> {
 
     _vehicles = VehiclePositionsClient(_onVehiclesUpdate)..connect();
 
+    await registerStopIcons(controller);
     await controller.addGeoJsonSource(_stopsSourceId, const {
       'type': 'FeatureCollection',
       'features': <Object>[],
     });
-    await controller.addCircleLayer(
+    await controller.addSymbolLayer(
       _stopsSourceId,
       _stopsLayerId,
-      const CircleLayerProperties(
-        circleRadius: 3,
-        circleColor: '#e9edf4',
-        circleStrokeColor: '#0a0f1c',
-        circleStrokeWidth: 1,
+      const SymbolLayerProperties(
+        iconImage: ['concat', 'stop-icon-', ['get', 'mode']],
+        iconSize: 0.5,
+        iconAllowOverlap: true,
       ),
     );
     _stopsSourceReady = true;
@@ -134,7 +135,12 @@ class _MapScreenState extends State<MapScreen> {
                 'type': 'Point',
                 'coordinates': [stop.lon, stop.lat],
               },
-              'properties': {'gtfsId': stop.gtfsId, 'name': stop.name, 'code': stop.code},
+              'properties': {
+                'gtfsId': stop.gtfsId,
+                'name': stop.name,
+                'code': stop.code,
+                'mode': stop.vehicleMode != null ? normalizeMode(stop.vehicleMode!) : unknownStopMode,
+              },
             },
           )
           .toList(),
