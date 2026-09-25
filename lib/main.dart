@@ -4,10 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import 'anchored_popup.dart';
 import 'digitransit.dart';
 import 'hfp.dart';
 import 'vehicle_modes.dart';
-import 'vehicle_stop_sheets.dart';
+import 'vehicle_stop_content.dart';
 
 // Same basemap and default view as the web app (see PulseMap.vue /
 // mapStyle.ts) - dark only for now, theme switching comes later.
@@ -50,6 +51,8 @@ class _MapScreenState extends State<MapScreen> {
   MapLibreMapController? _controller;
   VehiclePositionsClient? _vehicles;
   bool _stopsSourceReady = false;
+  Offset? _popupAnchor;
+  Widget? _popupContent;
 
   @override
   void dispose() {
@@ -131,7 +134,7 @@ class _MapScreenState extends State<MapScreen> {
                 'type': 'Point',
                 'coordinates': [stop.lon, stop.lat],
               },
-              'properties': {'gtfsId': stop.gtfsId, 'name': stop.name},
+              'properties': {'gtfsId': stop.gtfsId, 'name': stop.name, 'code': stop.code},
             },
           )
           .toList(),
@@ -160,60 +163,75 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _onMapClick(Point<double> point, LatLng coordinates) async {
     final controller = _controller;
-    debugPrint('[tap] click at $point / $coordinates');
     if (controller == null) return;
+    final anchor = Offset(point.x, point.y);
 
     final vehicleFeatures = await controller.queryRenderedFeatures(point, [_vehiclesLayerId], null);
-    debugPrint('[tap] ${vehicleFeatures.length} vehicle feature(s) at point');
     if (vehicleFeatures.isNotEmpty) {
       final properties = (vehicleFeatures.first as Map)['properties'] as Map;
-      _showSheet(
-        VehicleSheetContent(
-          vehicleId: properties['vehicleId'] as String,
+      setState(() {
+        _popupAnchor = anchor;
+        _popupContent = VehicleContent(
           mode: properties['mode'] as String,
           line: properties['line'] as String?,
-        ),
-      );
+          onClose: _closePopup,
+        );
+      });
       return;
     }
 
     final stopFeatures = await controller.queryRenderedFeatures(point, [_stopsLayerId], null);
-    debugPrint('[tap] ${stopFeatures.length} stop feature(s) at point');
     if (stopFeatures.isNotEmpty) {
       final properties = (stopFeatures.first as Map)['properties'] as Map;
       final gtfsId = properties['gtfsId'] as String;
-      _showSheet(
-        StopSheetContent(
+      setState(() {
+        _popupAnchor = anchor;
+        _popupContent = StopContent(
           name: properties['name'] as String,
+          code: properties['code'] as String?,
           departures: fetchStopDepartures(gtfsId),
-        ),
-      );
+          onClose: _closePopup,
+        );
+      });
+      return;
     }
+
+    _closePopup();
   }
 
-  void _showSheet(Widget content) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xff121a2c),
-      builder: (_) => content,
-    );
+  void _closePopup() {
+    setState(() {
+      _popupAnchor = null;
+      _popupContent = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
     return Scaffold(
-      body: MapLibreMap(
-        styleString: _darkBasemapUrl,
-        initialCameraPosition: const CameraPosition(
-          target: _helsinkiCenter,
-          zoom: 12.5,
-        ),
-        trackCameraPosition: true,
-        featureTapsTriggersMapClick: true,
-        onMapCreated: _onMapCreated,
-        onStyleLoadedCallback: _onStyleLoaded,
-        onCameraIdle: _onCameraIdle,
-        onMapClick: _onMapClick,
+      body: Stack(
+        children: [
+          MapLibreMap(
+            styleString: _darkBasemapUrl,
+            initialCameraPosition: const CameraPosition(
+              target: _helsinkiCenter,
+              zoom: 12.5,
+            ),
+            trackCameraPosition: true,
+            featureTapsTriggersMapClick: true,
+            onMapCreated: _onMapCreated,
+            onStyleLoadedCallback: _onStyleLoaded,
+            onCameraIdle: _onCameraIdle,
+            onMapClick: _onMapClick,
+          ),
+          if (_popupAnchor != null && _popupContent != null)
+            AnchoredPopup(
+              anchor: _popupAnchor!,
+              screenSize: screenSize,
+              child: _popupContent!,
+            ),
+        ],
       ),
     );
   }

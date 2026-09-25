@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+import 'vehicle_modes.dart';
+
 const _endpoint = 'https://api.digitransit.fi/routing/v2/hsl/gtfs/v1';
 
 Future<T?> _graphql<T>(
@@ -101,6 +103,7 @@ Future<List<Stop>> fetchStopsInBounds({
 
 class Departure {
   final String route;
+  final String mode;
   final String headsign;
   final DateTime departureAt;
   final bool realtime;
@@ -109,6 +112,7 @@ class Departure {
 
   Departure({
     required this.route,
+    required this.mode,
     required this.headsign,
     required this.departureAt,
     required this.realtime,
@@ -130,6 +134,7 @@ query StopDepartures(\$id: String!, \$numberOfDepartures: Int!) {
       trip {
         route {
           shortName
+          mode
         }
       }
     }
@@ -156,8 +161,10 @@ Future<List<Departure>> fetchStopDepartures(String gtfsId) async {
         final realtime = st['realtime'] as bool;
         final serviceDay = st['serviceDay'] as int;
         final route = st['trip']['route']['shortName'] as String?;
+        final mode = st['trip']['route']['mode'] as String?;
         return Departure(
           route: route ?? '–',
+          mode: normalizeMode(mode ?? ''),
           headsign: st['headsign'] as String? ?? '',
           departureAt: DateTime.fromMillisecondsSinceEpoch(
             (serviceDay + realtimeDeparture) * 1000,

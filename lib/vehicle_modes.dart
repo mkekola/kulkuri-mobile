@@ -21,6 +21,17 @@ const _modeLabels = {
 
 String modeLabel(String mode) => _modeLabels[mode] ?? mode;
 
+String modeColor(String mode) => modeColors[mode] ?? defaultModeColor;
+
+// Digitransit spells modes differently from HFP's topic segments (subway/rail
+// vs metro/train); normalize so both feed the same modeColors/modeLabel.
+const _digitransitModeAliases = {'subway': 'metro', 'rail': 'train'};
+
+String normalizeMode(String mode) {
+  final lower = mode.toLowerCase();
+  return _digitransitModeAliases[lower] ?? lower;
+}
+
 /// A MapLibre `match` expression mapping each vehicle's `mode` property to
 /// its mode color, for use as a data-driven `circleColor`.
 List<Object> get modeColorMatchExpression => [
