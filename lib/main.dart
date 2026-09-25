@@ -24,11 +24,6 @@ const _minStopsZoom = 14.0;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
-  // Default Virtual Display rendering has known gaps in touch-event
-  // forwarding through the platform view (matches the emulator log's own
-  // warning, and onMapClick never firing at all) - TextureView costs more
-  // to render but behaves like a normal composited widget.
-  MapLibreMap.useHybridComposition = true;
   runApp(const KulkuriApp());
 }
 
@@ -214,6 +209,7 @@ class _MapScreenState extends State<MapScreen> {
           zoom: 12.5,
         ),
         trackCameraPosition: true,
+        featureTapsTriggersMapClick: true,
         onMapCreated: _onMapCreated,
         onStyleLoadedCallback: _onStyleLoaded,
         onCameraIdle: _onCameraIdle,
