@@ -5,13 +5,18 @@ import 'package:flutter/material.dart';
 import 'theme.dart' as theme;
 
 const _preferredCardWidth = 280.0;
-const _tailSize = 14.0;
 const _margin = 8.0;
+const _cornerRadius = 14.0;
+const _tailWidth = 20.0;
+const _tailHeight = 9.0;
+const _borderWidth = 1.0;
 
-// Positions [child] in a card anchored to a screen point, with a tail
-// pointing back at it - same idea as the web app's StopDetail.vue/
-// VehicleDetail.vue anchored popups (anchoredPopup.ts), translated to
-// Flutter's Positioned/Stack model instead of CSS left/top/transform.
+// Positions [child] in a card anchored to a screen point, with a triangular
+// notch pointing back at it - same idea as the web app's StopDetail.vue/
+// VehicleDetail.vue anchored popups, but drawn as a single continuous shape
+// (_BubblePainter) instead of a separately rotated square overlapping the
+// card's edge: two aligned elements were fiddly to get pixel-perfect and
+// kept rendering as a visibly detached diamond instead of an attached tail.
 class AnchoredPopup extends StatelessWidget {
   final Offset anchor;
   final Size screenSize;
@@ -27,56 +32,81 @@ class AnchoredPopup extends StatelessWidget {
     final placeAbove = spaceAbove > spaceBelow;
 
     final left = (anchor.dx - cardWidth / 2).clamp(_margin, screenSize.width - cardWidth - _margin);
-    final tailOffset = (anchor.dx - left).clamp(_tailSize, cardWidth - _tailSize);
+    final tailCenterX = (anchor.dx - left).clamp(_tailWidth, cardWidth - _tailWidth);
 
-    final card = Container(
-      width: cardWidth,
-      constraints: const BoxConstraints(maxHeight: 360),
-      decoration: BoxDecoration(
-        color: theme.surfaceTranslucent,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: theme.lineStrong),
-        boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 8))],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: child,
-    );
-
-    // A rotated square, half tucked under the card's edge - the classic
-    // tooltip-tail trick, same as the web version's .tail element.
-    final tail = Transform.rotate(
-      angle: math.pi / 4,
-      child: Container(
-        width: _tailSize,
-        height: _tailSize,
-        decoration: BoxDecoration(
-          color: theme.surfaceTranslucent,
-          border: Border(
-            right: placeAbove ? const BorderSide(color: theme.lineStrong) : BorderSide.none,
-            bottom: placeAbove ? const BorderSide(color: theme.lineStrong) : BorderSide.none,
-            left: !placeAbove ? const BorderSide(color: theme.lineStrong) : BorderSide.none,
-            top: !placeAbove ? const BorderSide(color: theme.lineStrong) : BorderSide.none,
+    final bubble = CustomPaint(
+      painter: _BubblePainter(tailCenterX: tailCenterX, tailOnBottom: placeAbove),
+      child: ClipPath(
+        clipper: _BubbleClipper(tailCenterX: tailCenterX, tailOnBottom: placeAbove),
+        child: Padding(
+          padding: EdgeInsets.only(top: placeAbove ? 0 : _tailHeight, bottom: placeAbove ? _tailHeight : 0),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 360),
+            child: child,
           ),
         ),
       ),
     );
-    final tailRow = Padding(
-      padding: EdgeInsets.only(left: tailOffset - _tailSize / 2),
-      child: tail,
-    );
 
-    // The card's height isn't known ahead of layout, so instead of the web
-    // version's translateY(-100%) trick, "above" is anchored from the
-    // screen's bottom edge and grows upward from there.
     return Positioned(
       left: left,
-      top: placeAbove ? null : anchor.dy + _tailSize / 2,
-      bottom: placeAbove ? screenSize.height - anchor.dy + _tailSize / 2 : null,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: placeAbove ? [card, tailRow] : [tailRow, card],
-      ),
+      top: placeAbove ? null : anchor.dy,
+      bottom: placeAbove ? screenSize.height - anchor.dy : null,
+      child: SizedBox(width: cardWidth, child: bubble),
     );
   }
+}
+
+Path _bubblePath(Size size, {required double tailCenterX, required bool tailOnBottom}) {
+  final cardTop = tailOnBottom ? 0.0 : _tailHeight;
+  final cardBottom = tailOnBottom ? size.height - _tailHeight : size.height;
+  final rect = RRect.fromLTRBR(0, cardTop, size.width, cardBottom, const Radius.circular(_cornerRadius));
+
+  final path = Path()..addRRect(rect);
+  final tail = Path()
+    ..moveTo(tailCenterX - _tailWidth / 2, tailOnBottom ? cardBottom : cardTop)
+    ..lineTo(tailCenterX, tailOnBottom ? cardBottom + _tailHeight : cardTop - _tailHeight)
+    ..lineTo(tailCenterX + _tailWidth / 2, tailOnBottom ? cardBottom : cardTop)
+    ..close();
+
+  return Path.combine(PathOperation.union, path, tail);
+}
+
+class _BubblePainter extends CustomPainter {
+  final double tailCenterX;
+  final bool tailOnBottom;
+
+  _BubblePainter({required this.tailCenterX, required this.tailOnBottom});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _bubblePath(size, tailCenterX: tailCenterX, tailOnBottom: tailOnBottom);
+    canvas.drawShadow(path, Colors.black, 8, false);
+    canvas.drawPath(path, Paint()..color = theme.surfaceTranslucent);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = theme.lineStrong
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _borderWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BubblePainter oldDelegate) =>
+      oldDelegate.tailCenterX != tailCenterX || oldDelegate.tailOnBottom != tailOnBottom;
+}
+
+class _BubbleClipper extends CustomClipper<Path> {
+  final double tailCenterX;
+  final bool tailOnBottom;
+
+  _BubbleClipper({required this.tailCenterX, required this.tailOnBottom});
+
+  @override
+  Path getClip(Size size) => _bubblePath(size, tailCenterX: tailCenterX, tailOnBottom: tailOnBottom);
+
+  @override
+  bool shouldReclip(covariant _BubbleClipper oldClipper) =>
+      oldClipper.tailCenterX != tailCenterX || oldClipper.tailOnBottom != tailOnBottom;
 }
