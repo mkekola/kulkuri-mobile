@@ -21,6 +21,11 @@ const _minStopsZoom = 14.0;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
+  // Default Virtual Display rendering has known gaps around gesture/z-order
+  // handling on Android (matches the emulator log's platform-view warning
+  // and the camera position never updating after a pinch-zoom); TextureView
+  // costs more to render but behaves like a normal composited widget.
+  MapLibreMap.useHybridComposition = true;
   runApp(const KulkuriApp());
 }
 
