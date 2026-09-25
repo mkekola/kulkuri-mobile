@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'hfp.dart';
+import 'vehicle_modes.dart';
 
 // Same basemap and default view as the web app (see PulseMap.vue /
 // mapStyle.ts) - dark only for now, theme switching comes later.
@@ -58,9 +59,9 @@ class _MapScreenState extends State<MapScreen> {
     await controller.addCircleLayer(
       _vehiclesSourceId,
       _vehiclesLayerId,
-      const CircleLayerProperties(
+      CircleLayerProperties(
         circleRadius: 5,
-        circleColor: '#ff7a45',
+        circleColor: modeColorMatchExpression,
         circleStrokeColor: '#0a0f1c',
         circleStrokeWidth: 1.5,
       ),
