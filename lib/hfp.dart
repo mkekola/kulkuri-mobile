@@ -43,6 +43,7 @@ class VehiclePositionsClient {
     final clientId = 'kulkuri-mobile-${Random().nextInt(1 << 32)}';
     final client = MqttServerClient(_brokerUrl, clientId)
       ..useWebSocket = true
+      ..useAlternateWebSocketImplementation = true
       ..port = 443
       ..keepAlivePeriod = 30
       ..logging(on: false)
