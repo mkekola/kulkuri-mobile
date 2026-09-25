@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
@@ -11,7 +12,10 @@ Future<T?> _graphql<T>(
   T Function(Map<String, dynamic> data) fromData,
 ) async {
   final apiKey = dotenv.env['DIGITRANSIT_API_KEY'];
-  if (apiKey == null || apiKey.isEmpty) return null;
+  if (apiKey == null || apiKey.isEmpty) {
+    debugPrint('[digitransit] no API key loaded from .env');
+    return null;
+  }
 
   final response = await http.post(
     Uri.parse(_endpoint),
@@ -21,9 +25,15 @@ Future<T?> _graphql<T>(
     },
     body: jsonEncode({'query': query, 'variables': variables}),
   );
-  if (response.statusCode != 200) return null;
+  if (response.statusCode != 200) {
+    debugPrint('[digitransit] request failed: ${response.statusCode} ${response.body}');
+    return null;
+  }
 
   final json = jsonDecode(response.body) as Map<String, dynamic>;
+  if (json['errors'] != null) {
+    debugPrint('[digitransit] GraphQL errors: ${json['errors']}');
+  }
   final data = json['data'] as Map<String, dynamic>?;
   if (data == null) return null;
   return fromData(data);

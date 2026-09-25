@@ -99,6 +99,7 @@ class _MapScreenState extends State<MapScreen> {
     if (controller == null) return;
 
     final zoom = controller.cameraPosition?.zoom ?? 0;
+    debugPrint('[stops] camera idle at zoom $zoom');
     if (zoom < _minStopsZoom) {
       await controller.setGeoJsonSource(_stopsSourceId, const {
         'type': 'FeatureCollection',
@@ -114,6 +115,7 @@ class _MapScreenState extends State<MapScreen> {
       maxLat: bounds.northeast.latitude,
       maxLon: bounds.northeast.longitude,
     );
+    debugPrint('[stops] fetched ${stops.length} stops');
     await controller.setGeoJsonSource(_stopsSourceId, {
       'type': 'FeatureCollection',
       'features': stops
