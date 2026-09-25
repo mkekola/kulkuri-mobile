@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
@@ -44,12 +45,22 @@ class VehiclePositionsClient {
       ..useWebSocket = true
       ..port = 443
       ..keepAlivePeriod = 30
-      ..logging(on: false);
+      ..logging(on: false)
+      ..onConnected = () {
+        debugPrint('[hfp] connected');
+      }
+      ..onDisconnected = () {
+        debugPrint('[hfp] disconnected');
+      }
+      ..onSubscribed = (topic) {
+        debugPrint('[hfp] subscribed to $topic');
+      };
     _client = client;
 
     try {
       await client.connect();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[hfp] connect failed: $e');
       client.disconnect();
       return;
     }
@@ -58,6 +69,7 @@ class VehiclePositionsClient {
     client.updates?.listen(_onMessage);
 
     _flushTimer = Timer.periodic(_flushInterval, (_) {
+      debugPrint('[hfp] ${_vehicles.length} vehicles tracked');
       onUpdate(_vehicles.values.toList());
     });
   }
@@ -97,8 +109,8 @@ class VehiclePositionsClient {
           route: vp['route'] as String?,
           line: desi,
         );
-      } catch (_) {
-        // Ignore malformed messages.
+      } catch (e) {
+        debugPrint('[hfp] failed to parse message on ${message.topic}: $e');
       }
     }
   }
