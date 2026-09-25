@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import 'digitransit.dart';
 import 'hfp.dart';
 import 'vehicle_modes.dart';
 
@@ -10,8 +12,15 @@ const _darkBasemapUrl = 'https://tiles.openfreemap.org/styles/fiord';
 const _helsinkiCenter = LatLng(60.1719, 24.9414);
 const _vehiclesSourceId = 'vehicles';
 const _vehiclesLayerId = 'vehicles';
+const _stopsSourceId = 'stops';
+const _stopsLayerId = 'stops';
+// Stops only render once zoomed in enough that the list stays a reasonable
+// size - matches the web app's PulseMap.vue.
+const _minStopsZoom = 14.0;
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load();
   runApp(const KulkuriApp());
 }
 
@@ -68,6 +77,58 @@ class _MapScreenState extends State<MapScreen> {
     );
 
     _vehicles = VehiclePositionsClient(_onVehiclesUpdate)..connect();
+
+    await controller.addGeoJsonSource(_stopsSourceId, const {
+      'type': 'FeatureCollection',
+      'features': <Object>[],
+    });
+    await controller.addCircleLayer(
+      _stopsSourceId,
+      _stopsLayerId,
+      const CircleLayerProperties(
+        circleRadius: 3,
+        circleColor: '#e9edf4',
+        circleStrokeColor: '#0a0f1c',
+        circleStrokeWidth: 1,
+      ),
+    );
+  }
+
+  Future<void> _onCameraIdle() async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    final zoom = controller.cameraPosition?.zoom ?? 0;
+    if (zoom < _minStopsZoom) {
+      await controller.setGeoJsonSource(_stopsSourceId, const {
+        'type': 'FeatureCollection',
+        'features': <Object>[],
+      });
+      return;
+    }
+
+    final bounds = await controller.getVisibleRegion();
+    final stops = await fetchStopsInBounds(
+      minLat: bounds.southwest.latitude,
+      minLon: bounds.southwest.longitude,
+      maxLat: bounds.northeast.latitude,
+      maxLon: bounds.northeast.longitude,
+    );
+    await controller.setGeoJsonSource(_stopsSourceId, {
+      'type': 'FeatureCollection',
+      'features': stops
+          .map(
+            (stop) => {
+              'type': 'Feature',
+              'geometry': {
+                'type': 'Point',
+                'coordinates': [stop.lon, stop.lat],
+              },
+              'properties': {'gtfsId': stop.gtfsId, 'name': stop.name},
+            },
+          )
+          .toList(),
+    });
   }
 
   void _onVehiclesUpdate(List<VehiclePosition> vehicles) {
@@ -101,6 +162,7 @@ class _MapScreenState extends State<MapScreen> {
         ),
         onMapCreated: _onMapCreated,
         onStyleLoadedCallback: _onStyleLoaded,
+        onCameraIdle: _onCameraIdle,
       ),
     );
   }
