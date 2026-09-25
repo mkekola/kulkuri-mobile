@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -5,6 +7,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'digitransit.dart';
 import 'hfp.dart';
 import 'vehicle_modes.dart';
+import 'vehicle_stop_sheets.dart';
 
 // Same basemap and default view as the web app (see PulseMap.vue /
 // mapStyle.ts) - dark only for now, theme switching comes later.
@@ -155,6 +158,44 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
+  Future<void> _onMapClick(Point<double> point, LatLng coordinates) async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    final vehicleFeatures = await controller.queryRenderedFeatures(point, [_vehiclesLayerId], null);
+    if (vehicleFeatures.isNotEmpty) {
+      final properties = (vehicleFeatures.first as Map)['properties'] as Map;
+      _showSheet(
+        VehicleSheetContent(
+          vehicleId: properties['vehicleId'] as String,
+          mode: properties['mode'] as String,
+          line: properties['line'] as String?,
+        ),
+      );
+      return;
+    }
+
+    final stopFeatures = await controller.queryRenderedFeatures(point, [_stopsLayerId], null);
+    if (stopFeatures.isNotEmpty) {
+      final properties = (stopFeatures.first as Map)['properties'] as Map;
+      final gtfsId = properties['gtfsId'] as String;
+      _showSheet(
+        StopSheetContent(
+          name: properties['name'] as String,
+          departures: fetchStopDepartures(gtfsId),
+        ),
+      );
+    }
+  }
+
+  void _showSheet(Widget content) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xff121a2c),
+      builder: (_) => content,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -168,6 +209,7 @@ class _MapScreenState extends State<MapScreen> {
         onMapCreated: _onMapCreated,
         onStyleLoadedCallback: _onStyleLoaded,
         onCameraIdle: _onCameraIdle,
+        onMapClick: _onMapClick,
       ),
     );
   }

@@ -11,6 +11,16 @@ const modeColors = {
 
 const defaultModeColor = '#9a9a9a';
 
+const _modeLabels = {
+  'bus': 'Bussi',
+  'tram': 'Raitiovaunu',
+  'metro': 'Metro',
+  'train': 'Juna',
+  'ferry': 'Lautta',
+};
+
+String modeLabel(String mode) => _modeLabels[mode] ?? mode;
+
 /// A MapLibre `match` expression mapping each vehicle's `mode` property to
 /// its mode color, for use as a data-driven `circleColor`.
 List<Object> get modeColorMatchExpression => [

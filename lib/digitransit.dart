@@ -98,3 +98,75 @@ Future<List<Stop>> fetchStopsInBounds({
   );
   return data ?? [];
 }
+
+class Departure {
+  final String route;
+  final String headsign;
+  final DateTime departureAt;
+  final bool realtime;
+  // Seconds late (negative = early) - only meaningful once `realtime` is true.
+  final int? delaySeconds;
+
+  Departure({
+    required this.route,
+    required this.headsign,
+    required this.departureAt,
+    required this.realtime,
+    this.delaySeconds,
+  });
+}
+
+const _stopDeparturesQuery = '''
+query StopDepartures(\$id: String!, \$numberOfDepartures: Int!) {
+  stop(id: \$id) {
+    name
+    code
+    stoptimesWithoutPatterns(numberOfDepartures: \$numberOfDepartures) {
+      scheduledDeparture
+      realtimeDeparture
+      realtime
+      serviceDay
+      headsign
+      trip {
+        route {
+          shortName
+        }
+      }
+    }
+  }
+}
+''';
+
+const _departuresLimit = 6;
+
+// Next departures from a stop, most imminent first. `serviceDay` is midnight
+// (epoch seconds) of the operating day; departure seconds can run past 86400
+// for trips that started the previous day, so this still lands on the right
+// real-world moment.
+Future<List<Departure>> fetchStopDepartures(String gtfsId) async {
+  final data = await _graphql(
+    _stopDeparturesQuery,
+    {'id': gtfsId, 'numberOfDepartures': _departuresLimit},
+    (data) {
+      final stop = data['stop'] as Map<String, dynamic>?;
+      final stoptimes = (stop?['stoptimesWithoutPatterns'] as List<dynamic>?) ?? [];
+      return stoptimes.cast<Map<String, dynamic>>().map((st) {
+        final scheduled = st['scheduledDeparture'] as int;
+        final realtimeDeparture = st['realtimeDeparture'] as int;
+        final realtime = st['realtime'] as bool;
+        final serviceDay = st['serviceDay'] as int;
+        final route = st['trip']['route']['shortName'] as String?;
+        return Departure(
+          route: route ?? '–',
+          headsign: st['headsign'] as String? ?? '',
+          departureAt: DateTime.fromMillisecondsSinceEpoch(
+            (serviceDay + realtimeDeparture) * 1000,
+          ),
+          realtime: realtime,
+          delaySeconds: realtime ? realtimeDeparture - scheduled : null,
+        );
+      }).toList();
+    },
+  );
+  return data ?? [];
+}
