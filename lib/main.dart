@@ -21,11 +21,6 @@ const _minStopsZoom = 14.0;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
-  // Default Virtual Display rendering has known gaps around gesture/z-order
-  // handling on Android (matches the emulator log's platform-view warning
-  // and the camera position never updating after a pinch-zoom); TextureView
-  // costs more to render but behaves like a normal composited widget.
-  MapLibreMap.useHybridComposition = true;
   runApp(const KulkuriApp());
 }
 
@@ -51,6 +46,7 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   MapLibreMapController? _controller;
   VehiclePositionsClient? _vehicles;
+  bool _stopsSourceReady = false;
 
   @override
   void dispose() {
@@ -97,11 +93,12 @@ class _MapScreenState extends State<MapScreen> {
         circleStrokeWidth: 1,
       ),
     );
+    _stopsSourceReady = true;
   }
 
   Future<void> _onCameraIdle() async {
     final controller = _controller;
-    if (controller == null) return;
+    if (controller == null || !_stopsSourceReady) return;
 
     final zoom = controller.cameraPosition?.zoom ?? 0;
     debugPrint('[stops] camera idle at zoom $zoom');
@@ -167,6 +164,7 @@ class _MapScreenState extends State<MapScreen> {
           target: _helsinkiCenter,
           zoom: 12.5,
         ),
+        trackCameraPosition: true,
         onMapCreated: _onMapCreated,
         onStyleLoadedCallback: _onStyleLoaded,
         onCameraIdle: _onCameraIdle,
