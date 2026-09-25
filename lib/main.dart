@@ -160,9 +160,11 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _onMapClick(Point<double> point, LatLng coordinates) async {
     final controller = _controller;
+    debugPrint('[tap] click at $point / $coordinates');
     if (controller == null) return;
 
     final vehicleFeatures = await controller.queryRenderedFeatures(point, [_vehiclesLayerId], null);
+    debugPrint('[tap] ${vehicleFeatures.length} vehicle feature(s) at point');
     if (vehicleFeatures.isNotEmpty) {
       final properties = (vehicleFeatures.first as Map)['properties'] as Map;
       _showSheet(
@@ -176,6 +178,7 @@ class _MapScreenState extends State<MapScreen> {
     }
 
     final stopFeatures = await controller.queryRenderedFeatures(point, [_stopsLayerId], null);
+    debugPrint('[tap] ${stopFeatures.length} stop feature(s) at point');
     if (stopFeatures.isNotEmpty) {
       final properties = (stopFeatures.first as Map)['properties'] as Map;
       final gtfsId = properties['gtfsId'] as String;
