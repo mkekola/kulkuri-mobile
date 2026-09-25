@@ -66,7 +66,12 @@ class VehiclePositionsClient {
     }
 
     client.subscribe(_topic, MqttQos.atMostOnce);
-    client.updates?.listen(_onMessage);
+    client.updates?.listen(
+      _onMessage,
+      onError: (Object e, StackTrace st) => debugPrint('[hfp] updates stream error: $e\n$st'),
+      onDone: () => debugPrint('[hfp] updates stream done (closed)'),
+      cancelOnError: false,
+    );
 
     _flushTimer = Timer.periodic(_flushInterval, (_) {
       debugPrint('[hfp] ${_vehicles.length} vehicles tracked');
@@ -75,6 +80,7 @@ class VehiclePositionsClient {
   }
 
   void _onMessage(List<MqttReceivedMessage<MqttMessage>> messages) {
+    debugPrint('[hfp] batch of ${messages.length} message(s)');
     for (final message in messages) {
       try {
         final publish = message.payload as MqttPublishMessage;
